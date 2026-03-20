@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const quizAttemptSchema = new mongoose.Schema({
   userId:        { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -9,7 +9,10 @@ const quizAttemptSchema = new mongoose.Schema({
   attemptedAt:   { type: Date, default: Date.now },
 }, { timestamps: false });
 
+// ── INDEXES ─────────────────────────────────────────
 quizAttemptSchema.index({ userId: 1, attemptedAt: -1 });
 quizAttemptSchema.index({ userId: 1, articleId: 1 });
 
-module.exports = mongoose.model('QuizAttempt', quizAttemptSchema);
+// ✅ EXPORT
+const QuizAttempt = mongoose.model("QuizAttempt", quizAttemptSchema);
+export default QuizAttempt;
