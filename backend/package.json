@@ -1,13 +1,8 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "type": "module",
-  ...
-}
-{
   "name": "examedge-backend",
   "version": "1.0.0",
   "description": "ExamEdge - AI-powered current affairs for Indian exam aspirants",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
