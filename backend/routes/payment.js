@@ -6,7 +6,7 @@ import { requireAuth } from "../middleware/auth.js";
 const router = express.Router();
 
 // Lazy-load Razorpay
-function getRazorpay() {
+async function getRazorpay() {
   if (
     !process.env.RAZORPAY_KEY_ID ||
     process.env.RAZORPAY_KEY_ID.startsWith("rzp_test_your")
@@ -14,7 +14,6 @@ function getRazorpay() {
     return null;
   }
 
-  // dynamic import in ESM
   const Razorpay = (await import("razorpay")).default;
 
   return new Razorpay({
