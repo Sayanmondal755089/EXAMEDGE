@@ -29,8 +29,7 @@ connectRedis();
 
 // ── MIDDLEWARE ─────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://examedge-snowy.vercel.app/',
-  credentials: true
+  origin: "*"
 }));
 app.use(express.json());
 app.use(morgan('dev'));
