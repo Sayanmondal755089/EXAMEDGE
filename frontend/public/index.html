@@ -540,12 +540,6 @@ async function sendOTP() {
   try {
     const data = await api('POST', '/auth/send-otp', { identifier });
     document.getElementById('otp-sent-to').textContent = identifier;
-    // Show OTP in dev mode
-    if (data.devOtp) {
-      const hint = document.getElementById('dev-otp-hint');
-      hint.textContent = `DEV MODE — Your OTP: ${data.devOtp}`;
-      hint.style.display = 'block';
-    }
     showLoginStep('step-otp');
     setTimeout(() => document.getElementById('otp1').focus(), 100);
   } catch(e) {
