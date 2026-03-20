@@ -11,7 +11,7 @@ import connectDB from "./config/database.js";
 import { connectRedis } from "./config/redis.js";
 
 // ✅ Routes import
-import auth from "./routes/auth.js";
+import authRoutes from "./routes/auth.js";
 import articleRoutes from "./routes/articles.js";
 import paymentRoutes from "./routes/payment.js";
 import quizRoutes from "./routes/quiz.js";
