@@ -3,7 +3,7 @@ const router = express.Router();
 
 import Article from "../models/Article.js";
 import { requireAuth, requirePremium } from "../middleware/auth.js";
-import { redis } from "../config/redis.js"; // check export
+import { get, setex, del } from "../config/redis.js";// check export
 
 // ── FREE: Today's headlines ─────────────────────────
 router.get("/headlines", async (req, res) => {
