@@ -1,5 +1,5 @@
-const Anthropic = require('@anthropic-ai/sdk');
-const Article = require('../models/Article');
+import Anthropic from "@anthropic-ai/sdk";
+import Article from "../models/Article.js";
 
 const BATCH_SIZE = 5;
 const DELAY_BETWEEN_BATCHES_MS = 1200;
@@ -49,6 +49,7 @@ async function processArticles(articles) {
     console.warn('[AI] ANTHROPIC_API_KEY not set — skipping AI processing');
     return;
   }
+
   if (!articles || articles.length === 0) {
     console.log('[AI] No articles to process');
     return;
@@ -63,51 +64,56 @@ async function processArticles(articles) {
   for (let i = 0; i < articles.length; i += BATCH_SIZE) {
     const batch = articles.slice(i, i + BATCH_SIZE);
 
-    await Promise.allSettled(batch.map(async (article) => {
-      try {
-        const response = await client.messages.create({
-          model:      'claude-haiku-4-5-20251001',
-          max_tokens: 900,
-          messages:   [{ role: 'user', content: buildPrompt(article) }],
-        });
+    await Promise.allSettled(
+      batch.map(async (article) => {
+        try {
+          const response = await client.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 900,
+            messages: [{ role: 'user', content: buildPrompt(article) }],
+          });
 
-        const raw = response.content[0].text.replace(/```json|```/g, '').trim();
-        const parsed = JSON.parse(raw);
+          const raw = response.content[0].text.replace(/```json|```/g, '').trim();
+          const parsed = JSON.parse(raw);
 
-        // Validate structure
-        if (!parsed.summary || !Array.isArray(parsed.keyPoints) || !Array.isArray(parsed.quizzes)) {
-          throw new Error('Invalid AI response structure');
+          // Validate structure
+          if (!parsed.summary || !Array.isArray(parsed.keyPoints) || !Array.isArray(parsed.quizzes)) {
+            throw new Error('Invalid AI response structure');
+          }
+
+          await Article.findByIdAndUpdate(article._id, {
+            'content.summary': parsed.summary,
+            'content.keyPoints': parsed.keyPoints.slice(0, 5),
+            examRelevance: ['high', 'medium', 'low'].includes(parsed.examRelevance)
+              ? parsed.examRelevance
+              : 'medium',
+            quizzes: parsed.quizzes.slice(0, 3).map((q) => ({
+              question: q.question,
+              options: q.options.slice(0, 4),
+              correctIndex: Math.min(Math.max(parseInt(q.correctIndex), 0), 3),
+              explanation: q.explanation || '',
+            })),
+            aiProcessed: true,
+            aiProcessedAt: new Date(),
+          });
+
+          processed++;
+          console.log(`[AI] ✓ ${article.title.slice(0, 60)}...`);
+        } catch (err) {
+          failed++;
+          console.error(`[AI] ✗ ${article.title.slice(0, 40)}... — ${err.message}`);
         }
+      })
+    );
 
-        await Article.findByIdAndUpdate(article._id, {
-          'content.summary':   parsed.summary,
-          'content.keyPoints': parsed.keyPoints.slice(0, 5),
-          examRelevance:       ['high','medium','low'].includes(parsed.examRelevance) ? parsed.examRelevance : 'medium',
-          quizzes:             parsed.quizzes.slice(0, 3).map(q => ({
-            question:     q.question,
-            options:      q.options.slice(0, 4),
-            correctIndex: Math.min(Math.max(parseInt(q.correctIndex), 0), 3),
-            explanation:  q.explanation || '',
-          })),
-          aiProcessed:   true,
-          aiProcessedAt: new Date(),
-        });
-
-        processed++;
-        console.log(`[AI] ✓ ${article.title.slice(0, 60)}...`);
-      } catch (err) {
-        failed++;
-        console.error(`[AI] ✗ ${article.title.slice(0, 40)}... — ${err.message}`);
-      }
-    }));
-
-    // Rate limit: wait between batches
+    // Rate limit delay
     if (i + BATCH_SIZE < articles.length) {
-      await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES_MS));
+      await new Promise((r) => setTimeout(r, DELAY_BETWEEN_BATCHES_MS));
     }
   }
 
   console.log(`[AI] Done. Processed: ${processed}, Failed: ${failed}`);
 }
 
-module.exports = { processArticles };
+// ✅ EXPORT
+export { processArticles };
