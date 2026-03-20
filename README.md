@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ExamEdge — AI-Powered Current Affairs for Indian Exam Aspirants
 
 > UPSC · SSC · Banking · Railways  
@@ -315,3 +316,6 @@ Break-even: **79 subscribers** cover all monthly costs.
 
 Built with ❤️ for Indian exam aspirants.
 Questions? Check the code comments — every file is thoroughly commented.
+=======
+# EXAMEDGE
+>>>>>>> 85b389cc6b6abb1aa48dbfcc7f5e7e0feb89aa2a
