@@ -1,76 +1,87 @@
-const router = require('express').Router();
-const Article = require('../models/Article');
-const { requireAuth, requirePremium } = require('../middleware/auth');
-const redis = require('../config/redis');
+import express from "express";
+const router = express.Router();
 
-// ── FREE: Today's headlines (no auth) ─────────────────────────────────────────
-// GET /api/articles/headlines
-router.get('/headlines', async (req, res) => {
+import Article from "../models/Article.js";
+import { requireAuth, requirePremium } from "../middleware/auth.js";
+import { redis } from "../config/redis.js"; // check export
+
+// ── FREE: Today's headlines ─────────────────────────
+router.get("/headlines", async (req, res) => {
   try {
-    const cacheKey = 'feed:free';
-    const cached = await redis.get(cacheKey);
+    const cacheKey = "feed:free";
+
+    const cached = redis ? await redis.get(cacheKey) : null;
     if (cached) return res.json(JSON.parse(cached));
 
-    const articles = await Article
-      .find({ isFree: true })
+    const articles = await Article.find({ isFree: true })
       .sort({ fetchedAt: -1 })
       .limit(3)
-      .select('title sourceName category examRelevance publishedAt fetchedAt');
+      .select("title sourceName category examRelevance publishedAt fetchedAt");
 
-    await redis.setex(cacheKey, 3600, JSON.stringify(articles));
+    if (redis) await redis.setex(cacheKey, 3600, JSON.stringify(articles));
+
     res.json(articles);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch headlines' });
+    res.status(500).json({ error: "Failed to fetch headlines" });
   }
 });
 
-// ── PREMIUM: Full feed ────────────────────────────────────────────────────────
-// GET /api/articles/feed?category=economy&page=1&limit=20
-router.get('/feed', requireAuth, requirePremium, async (req, res) => {
+// ── PREMIUM: Feed ─────────────────────────
+router.get("/feed", requireAuth, requirePremium, async (req, res) => {
   try {
     const { category, page = 1, limit = 20 } = req.query;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const cacheKey = `feed:${today.toISOString().split('T')[0]}:${category || 'all'}:${page}`;
-    const cached = await redis.get(cacheKey);
+    const cacheKey = `feed:${today.toISOString().split("T")[0]}:${category || "all"}:${page}`;
+    const cached = redis ? await redis.get(cacheKey) : null;
     if (cached) return res.json(JSON.parse(cached));
 
     const filter = {
       aiProcessed: true,
       fetchedAt: { $gte: today },
     };
-    if (category && category !== 'all') filter.category = category;
+
+    if (category && category !== "all") filter.category = category;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
+
     const [articles, total] = await Promise.all([
       Article.find(filter)
         .sort({ examRelevance: 1, fetchedAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
-        .select('-content.originalText'),
+        .select("-content.originalText"),
       Article.countDocuments(filter),
     ]);
 
-    const result = { articles, total, page: parseInt(page), pages: Math.ceil(total / limit) };
-    await redis.setex(cacheKey, 3600, JSON.stringify(result));
+    const result = {
+      articles,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
+    };
+
+    if (redis) await redis.setex(cacheKey, 3600, JSON.stringify(result));
+
     res.json(result);
   } catch (err) {
-    console.error('feed error:', err);
-    res.status(500).json({ error: 'Failed to fetch feed' });
+    console.error("feed error:", err);
+    res.status(500).json({ error: "Failed to fetch feed" });
   }
 });
 
-// ── PREMIUM: Single article ───────────────────────────────────────────────────
-// GET /api/articles/:id
-router.get('/:id', requireAuth, requirePremium, async (req, res) => {
+// ── SINGLE ARTICLE ─────────────────────────
+router.get("/:id", requireAuth, requirePremium, async (req, res) => {
   try {
-    const article = await Article.findById(req.params.id).select('-content.originalText');
-    if (!article) return res.status(404).json({ error: 'Article not found' });
+    const article = await Article.findById(req.params.id).select("-content.originalText");
+    if (!article) return res.status(404).json({ error: "Article not found" });
+
     res.json(article);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch article' });
+    res.status(500).json({ error: "Failed to fetch article" });
   }
 });
 
-module.exports = router;
+export default router;
