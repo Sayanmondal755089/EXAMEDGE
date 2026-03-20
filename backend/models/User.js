@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema({
   name:         { type: String, trim: true },
@@ -31,11 +31,11 @@ const userSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-// ── INDEXES ───────────────────────────────────────────────────────────────────
+// ── INDEXES ───────────────────────────────────────────────────
 userSchema.index({ email: 1 });
 userSchema.index({ phone: 1 });
 
-// ── METHODS ───────────────────────────────────────────────────────────────────
+// ── METHODS ───────────────────────────────────────────────────
 userSchema.methods.isPremium = function () {
   return this.role === 'premium' &&
     this.subscription.status === 'active' &&
@@ -51,11 +51,12 @@ userSchema.methods.updateStreak = async function () {
     const lastDay = new Date(last);
     lastDay.setHours(0, 0, 0, 0);
     const diff = Math.floor((today - lastDay) / (1000 * 60 * 60 * 24));
-    if (diff === 0) return; // already updated today
+
+    if (diff === 0) return;
     if (diff === 1) {
       this.streak.current += 1;
     } else {
-      this.streak.current = 1; // broke streak
+      this.streak.current = 1;
     }
   } else {
     this.streak.current = 1;
@@ -66,7 +67,7 @@ userSchema.methods.updateStreak = async function () {
   await this.save();
 };
 
-// Mask sensitive fields in JSON responses
+// Mask sensitive fields
 userSchema.methods.toSafeJSON = function () {
   const obj = this.toObject();
   delete obj.passwordHash;
@@ -74,4 +75,6 @@ userSchema.methods.toSafeJSON = function () {
   return obj;
 };
 
-module.exports = mongoose.model('User', userSchema);
+// ✅ EXPORT (IMPORTANT)
+const User = mongoose.model("User", userSchema);
+export default User;
