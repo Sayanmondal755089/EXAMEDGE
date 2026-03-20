@@ -2,14 +2,17 @@ import mongoose from "mongoose";
 
 let isConnected = false;
 
-export async function connectDB() {
+const connectDB = async () => {
   if (isConnected) return;
 
   try {
     const uri =
       process.env.MONGODB_URI || "mongodb://localhost:27017/examedge";
 
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
 
     isConnected = true;
 
@@ -21,10 +24,15 @@ export async function connectDB() {
     console.error("❌ MongoDB connection error:", err.message);
     process.exit(1);
   }
-}
+};
 
+// 🔄 Auto reconnect handling
 mongoose.connection.on("disconnected", () => {
   console.warn("⚠️ MongoDB disconnected. Reconnecting...");
   isConnected = false;
   setTimeout(connectDB, 5000);
 });
+
+// ❌ Named export hata diya
+// ✅ Default export use kiya
+export default connectDB;
