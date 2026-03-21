@@ -16,6 +16,7 @@ import articleRoutes from "./routes/articles.js";
 import paymentRoutes from "./routes/payment.js";
 import quizRoutes from "./routes/quiz.js";
 import userRoutes from "./routes/user.js";
+import otpRoutes from "./routes/otp.js"; // ✅ NEW
 
 // ✅ __dirname fix
 const __filename = fileURLToPath(import.meta.url);
@@ -32,22 +33,26 @@ app.use(cors({
   origin: "*"
 }));
 app.use(express.json());
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 
 // ── STATIC FILES ───────────────────────────
-app.use(express.static(path.join(__dirname, '../frontend/public')));
-app.use('/api', (req, res, next) => {
+app.use(express.static(path.join(__dirname, "../frontend/public")));
+
+// API logger
+app.use("/api", (req, res, next) => {
   console.log("API Hit:", req.method, req.originalUrl);
   next();
 });
 
 // ── ROUTES ─────────────────────────────────
-app.use('/api/auth', authRoutes);
-app.use('/api/articles', articleRoutes);
-app.use('/api/payment', paymentRoutes);
-app.use('/api/quiz', quizRoutes);
-app.use('/api/user', userRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/articles", articleRoutes);
+app.use("/api/payment", paymentRoutes);
+app.use("/api/quiz", quizRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/otp", otpRoutes); // ✅ OTP ROUTE ADDED
 
+// ── CHECK USER ─────────────────────────────
 app.get("/api/check-user", async (req, res) => {
   const email = req.query.email || req.query.mobile || req.query.identifier;
 
@@ -65,8 +70,12 @@ app.get("/api/check-user", async (req, res) => {
 });
 
 // ── HEALTH CHECK ───────────────────────────
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString(), env: process.env.NODE_ENV });
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    time: new Date().toISOString(),
+    env: process.env.NODE_ENV
+  });
 });
 
 // ── START SERVER ───────────────────────────
@@ -75,19 +84,24 @@ const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`\n✅ ExamEdge server running on http://localhost:${PORT}`);
   console.log(`   ENV: ${process.env.NODE_ENV}`);
-  console.log(`   DB:  ${process.env.MONGODB_URI?.split('@')[1] || 'localhost'}\n`);
+  console.log(
+    `   DB: ${
+      process.env.MONGODB_URI?.split("@")[1] || "localhost"
+    }\n`
+  );
 });
 
-// ── CRON JOBS ──────────────────────────────
-if (process.env.NODE_ENV === 'production') {
-  const cronJobs = await import("./pipeline/cron.js");
-  console.log('⏰ Cron jobs active (6:00 AM IST daily)');
+// ── CRON JOBS (Production only) ────────────
+if (process.env.NODE_ENV === "production") {
+  import("./pipeline/cron.js").then(() => {
+    console.log("⏰ Cron jobs active (6:00 AM IST daily)");
+  });
 }
-// ── FRONTEND FALLBACK ──────────────────────
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/public/index.html'));
+
+// ── FRONTEND FALLBACK (⚠️ ALWAYS LAST) ────
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/public/index.html"));
 });
 
-// ❌ REMOVE THIS LINE (ESM me nahi chahiye)
-// module.exports = app;
+// ✅ EXPORT
 export default app;
