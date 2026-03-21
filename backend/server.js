@@ -44,14 +44,25 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/user', userRoutes);
 
+app.get("/api/check-user", async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(200).json({
+      user_found: false,
+      identifier: ""
+    });
+  }
+
+  return res.status(200).json({
+    user_found: true,
+    identifier: email
+  });
+});
+
 // ── HEALTH CHECK ───────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), env: process.env.NODE_ENV });
-});
-
-// ── FRONTEND FALLBACK ──────────────────────
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/public/index.html'));
 });
 
 // ── START SERVER ───────────────────────────
@@ -68,6 +79,10 @@ if (process.env.NODE_ENV === 'production') {
   const cronJobs = await import("./pipeline/cron.js");
   console.log('⏰ Cron jobs active (6:00 AM IST daily)');
 }
+// ── FRONTEND FALLBACK ──────────────────────
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/public/index.html'));
+});
 
 // ❌ REMOVE THIS LINE (ESM me nahi chahiye)
 // module.exports = app;
