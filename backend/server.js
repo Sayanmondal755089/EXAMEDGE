@@ -45,7 +45,7 @@ app.use('/api/quiz', quizRoutes);
 app.use('/api/user', userRoutes);
 
 app.get("/api/check-user", async (req, res) => {
-  const { email } = req.query;
+  const email = req.query.email || req.query.mobile || req.query.identifier;
 
   if (!email) {
     return res.status(200).json({
