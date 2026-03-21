@@ -3,25 +3,24 @@ import User from "../models/User.js";
 import { generateTokens, requireAuth } from "../middleware/auth.js";
 import jwt from "jsonwebtoken";
 import axios from "axios";
-import fetch from "node-fetch";
 
 const router = express.Router();
 
-// ── SEND OTP ─────────────────────────────────────────────
+// ── SEND OTP ───────────────────────────────
 router.post("/send-otp", async (req, res) => {
   try {
-    const { identifier } = req.body;
+    let { identifier } = req.body;
 
     if (!identifier) {
       return res.status(400).json({ error: "Phone required" });
     }
 
-    const isEmail = identifier.includes("@");
-    if (isEmail) {
-      return res.status(400).json({ error: "Use phone number for OTP" });
+    // 👉 Ensure Indian format
+    if (!identifier.startsWith("91")) {
+      identifier = "91" + identifier;
     }
 
-    // 👉 User create/find
+    // 👉 Create / find user
     let user = await User.findOne({ phone: identifier });
     if (!user) {
       user = await User.create({
@@ -30,7 +29,7 @@ router.post("/send-otp", async (req, res) => {
       });
     }
 
-    // 🔥 MSG91 send OTP
+    // ✅ MSG91 SEND OTP
     const response = await axios.post(
       "https://control.msg91.com/api/v5/otp",
       {
@@ -47,57 +46,54 @@ router.post("/send-otp", async (req, res) => {
 
     res.json({
       success: true,
-      message: "OTP sent successfully",
+      message: "OTP sent",
       requestId: response.data.request_id
     });
 
   } catch (err) {
-    console.error("MSG91 send error:", err.response?.data || err.message);
+    console.error("OTP SEND ERROR:", err.response?.data || err.message);
     res.status(500).json({ error: "Failed to send OTP" });
   }
 });
 
-// ── VERIFY OTP ───────────────────────────────────────────
+// ── VERIFY OTP ────────────────────────────
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { identifier, otp } = req.body;
+    let { identifier, otp } = req.body;
 
     if (!identifier || !otp) {
-      return res.status(400).json({ error: "identifier and otp required" });
+      return res.status(400).json({ error: "identifier & otp required" });
     }
 
-    const response = await fetch("https://control.msg91.com/api/v5/otp/verify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        mobile: identifier,
-        otp: otp,
-        authkey: process.env.MSG91_AUTH_KEY
-      })
-    });
+    if (!identifier.startsWith("91")) {
+      identifier = "91" + identifier;
+    }
 
-    const data = await response.json();
+    const response = await axios.post(
+      "https://control.msg91.com/api/v5/otp/verify",
+      {
+        mobile: identifier,
+        otp: otp
+      },
+      {
+        headers: {
+          authkey: process.env.MSG91_AUTH_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const data = response.data;
 
     if (data.type !== "success") {
       return res.status(400).json({ error: "Invalid OTP" });
     }
 
-    // ✅ OTP verified → ab user check karo
-    const isEmail = identifier.includes("@");
-    const query = isEmail
-      ? { email: identifier.toLowerCase() }
-      : { phone: identifier };
+    // 👉 user fetch/create
+    let user = await User.findOne({ phone: identifier });
 
-    let user = await User.findOne(query);
-
-    // 👉 Agar user nahi hai → create karo
     if (!user) {
-      user = await User.create({
-        email: isEmail ? identifier : undefined,
-        phone: !isEmail ? identifier : undefined
-      });
+      user = await User.create({ phone: identifier });
     }
 
     const { accessToken, refreshToken } = generateTokens(user._id);
@@ -107,15 +103,16 @@ router.post("/verify-otp", async (req, res) => {
       accessToken,
       refreshToken,
       user: user.toSafeJSON(),
-      needsPayment: !user.isPremium(),
+      needsPayment: !user.isPremium()
     });
 
   } catch (err) {
-    res.status(500).json({ error: "Verification failed" });
+    console.error("VERIFY ERROR:", err.response?.data || err.message);
+    res.status(500).json({ error: "OTP verification failed" });
   }
 });
 
-// ── REFRESH TOKEN ────────────────────────────────────────
+// ── REFRESH TOKEN ─────────────────────────
 router.post("/refresh", async (req, res) => {
   try {
     const { refreshToken } = req.body;
@@ -135,30 +132,16 @@ router.post("/refresh", async (req, res) => {
     const tokens = generateTokens(user._id);
 
     res.json({ ...tokens, user: user.toSafeJSON() });
+
   } catch {
     res.status(401).json({ error: "Invalid refresh token" });
   }
 });
 
-// ── GET CURRENT USER ─────────────────────────────────────
+// ── GET USER ──────────────────────────────
 router.get("/me", requireAuth, async (req, res) => {
   await req.user.updateStreak();
   res.json({ user: req.user.toSafeJSON() });
 });
 
-// ── HELPER ───────────────────────────────────────────────
-async function sendSMSOTP(phone, otp) {
-  try {
-    await axios.post("https://api.msg91.com/api/v5/otp", {
-      template_id: process.env.MSG91_TEMPLATE_ID,
-      mobile: phone,
-      authkey: process.env.MSG91_API_KEY,
-      otp,
-    });
-  } catch (err) {
-    console.warn("SMS send failed:", err.message);
-  }
-}
-
-// ✅ VERY IMPORTANT
 export default router;
