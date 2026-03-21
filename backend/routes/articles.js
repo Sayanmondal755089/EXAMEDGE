@@ -3,14 +3,15 @@ const router = express.Router();
 
 import Article from "../models/Article.js";
 import { requireAuth, requirePremium } from "../middleware/auth.js";
-import { get, setex, del } from "../config/redis.js";// check export
+import { get, setex, del } from "../config/redis.js"; // ✅ correct use
 
 // ── FREE: Today's headlines ─────────────────────────
 router.get("/headlines", async (req, res) => {
   try {
     const cacheKey = "feed:free";
 
-    const cached = redis ? await redis.get(cacheKey) : null;
+    // ✅ FIX
+    const cached = await get(cacheKey);
     if (cached) return res.json(JSON.parse(cached));
 
     const articles = await Article.find({ isFree: true })
@@ -18,10 +19,13 @@ router.get("/headlines", async (req, res) => {
       .limit(3)
       .select("title sourceName category examRelevance publishedAt fetchedAt");
 
-    if (redis) await redis.setex(cacheKey, 3600, JSON.stringify(articles));
+    // ✅ FIX
+    await setex(cacheKey, 3600, JSON.stringify(articles));
 
     res.json(articles);
+
   } catch (err) {
+    console.error("HEADLINES ERROR:", err);
     res.status(500).json({ error: "Failed to fetch headlines" });
   }
 });
@@ -35,7 +39,9 @@ router.get("/feed", requireAuth, requirePremium, async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     const cacheKey = `feed:${today.toISOString().split("T")[0]}:${category || "all"}:${page}`;
-    const cached = redis ? await redis.get(cacheKey) : null;
+
+    // ✅ FIX
+    const cached = await get(cacheKey);
     if (cached) return res.json(JSON.parse(cached));
 
     const filter = {
@@ -63,11 +69,13 @@ router.get("/feed", requireAuth, requirePremium, async (req, res) => {
       pages: Math.ceil(total / limit),
     };
 
-    if (redis) await redis.setex(cacheKey, 3600, JSON.stringify(result));
+    // ✅ FIX
+    await setex(cacheKey, 3600, JSON.stringify(result));
 
     res.json(result);
+
   } catch (err) {
-    console.error("feed error:", err);
+    console.error("FEED ERROR:", err);
     res.status(500).json({ error: "Failed to fetch feed" });
   }
 });
@@ -75,11 +83,17 @@ router.get("/feed", requireAuth, requirePremium, async (req, res) => {
 // ── SINGLE ARTICLE ─────────────────────────
 router.get("/:id", requireAuth, requirePremium, async (req, res) => {
   try {
-    const article = await Article.findById(req.params.id).select("-content.originalText");
-    if (!article) return res.status(404).json({ error: "Article not found" });
+    const article = await Article.findById(req.params.id)
+      .select("-content.originalText");
+
+    if (!article) {
+      return res.status(404).json({ error: "Article not found" });
+    }
 
     res.json(article);
+
   } catch (err) {
+    console.error("ARTICLE ERROR:", err);
     res.status(500).json({ error: "Failed to fetch article" });
   }
 });
