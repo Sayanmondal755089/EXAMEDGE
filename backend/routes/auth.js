@@ -112,6 +112,68 @@ router.post("/verify-otp", async (req, res) => {
   }
 });
 
+// ── VERIFY MSG91 WIDGET TOKEN ─────────────
+// Frontend MSG91 widget success callback ke baad ye call hota hai
+// Body: { identifier, token }
+router.post("/verify-msg91", async (req, res) => {
+  try {
+    let { identifier, token } = req.body;
+
+    if (!identifier) return res.status(400).json({ error: "identifier required" });
+    if (!token)      return res.status(400).json({ error: "MSG91 token required" });
+
+    // Indian format ensure karo
+    if (!identifier.startsWith("91")) {
+      identifier = "91" + identifier;
+    }
+
+    // ── Step 1: MSG91 server se token verify karo ──────────────────────────
+    const msg91Res = await axios.post(
+      "https://control.msg91.com/api/v5/widget/verifyAccessToken",
+      {
+        authkey:        "502039A2TIOvFpLWCs69be67c0P1",
+        "access-token": token,
+      },
+      {
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      }
+    );
+
+    const msg91Data = msg91Res.data;
+    console.log("[MSG91 verify]", msg91Data);
+
+    // MSG91 success response: { "type": "success", ... }
+    if (msg91Data.type !== "success") {
+      return res.status(401).json({
+        error: "OTP verification failed: " + (msg91Data.message || "Invalid token"),
+      });
+    }
+    // ── Step 1 done — token genuine hai ───────────────────────────────────
+
+    // ── Step 2: User find ya create karo ──────────────────────────────────
+    let user = await User.findOne({ phone: identifier });
+    if (!user) {
+      user = await User.create({ phone: identifier, role: "free" });
+      console.log("[Auth] New user created:", identifier);
+    }
+
+    // ── Step 3: Apna JWT issue karo ───────────────────────────────────────
+    const { accessToken, refreshToken } = generateTokens(user._id);
+
+    res.json({
+      success:      true,
+      accessToken,
+      refreshToken,
+      user:         user.toSafeJSON(),
+      needsPayment: !user.isPremium(),
+    });
+
+  } catch (err) {
+    console.error("verify-msg91 error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Login failed. Please try again." });
+  }
+});
+
 // ── REFRESH TOKEN ─────────────────────────
 router.post("/refresh", async (req, res) => {
   try {
