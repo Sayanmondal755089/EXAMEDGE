@@ -29,7 +29,7 @@ await connectDB();
 await connectRedis();
 
 // ── MIDDLEWARE ───────────────────────────
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "*", credentials: false })); // credentials false when origin is "*"
 app.use(express.json());
 app.use(morgan("dev"));
 
@@ -68,11 +68,16 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// ── STATIC FILES (IMPORTANT POSITION FIX) ─
+// ── STATIC FILES ──────────────────────────
 app.use(express.static(path.join(__dirname, "../frontend/public")));
 
+// ── FRONTEND FALLBACK (⚠️ HAMESHA LAST — lekin listen se PEHLE) ────
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/public/index.html"));
+});
+
 // ── START SERVER ─────────────────────────
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
@@ -84,11 +89,6 @@ if (process.env.NODE_ENV === "production") {
     .then(() => console.log("⏰ Cron jobs active"))
     .catch((err) => console.error("Cron error:", err.message));
 }
-
-// ── FRONTEND FALLBACK (⚠️ ALWAYS LAST) ────
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../frontend/public/index.html"));
-});
 
 // ── EXPORT ───────────────────────────────
 export default app;
