@@ -247,12 +247,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
 .empty-state{text-align:center;padding:80px 24px;color:var(--text3)}
 .empty-icon{font-size:48px;margin-bottom:16px}
 .empty-state h3{font-size:18px;font-weight:600;color:var(--text2);margin-bottom:8px}
-/* Login tabs */
-.login-tabs{display:flex;gap:0;margin-bottom:24px;border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
-.login-tab{flex:1;padding:10px;font-family:var(--font-body);font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--text3);transition:all .2s}
-.login-tab.active{background:var(--navy);color:#fff}
-.member-login-link{font-size:13px;color:var(--saffron);text-align:center;margin-top:16px;cursor:pointer;display:block}
-.member-login-link:hover{text-decoration:underline}
 /* Toast */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:12px 20px;border-radius:50px;font-size:14px;font-weight:500;z-index:500;display:none;align-items:center;gap:8px;box-shadow:var(--shadow-lg);animation:toastIn .3s ease}
 .toast.show{display:flex}
@@ -272,8 +266,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
   <div class="nav-brand" onclick="goHome()">Exam<span>Edge</span></div>
   <div class="nav-spacer"></div>
   <div id="nav-guest" style="display:flex;gap:8px">
-    <button class="nav-btn" onclick="openLogin('existing')">Login</button>
-    <button class="nav-btn primary" onclick="openLogin('new')">Get Access — ₹19</button>
+    <button class="nav-btn" onclick="openLogin()">Sign in</button>
+    <button class="nav-btn primary" onclick="openLogin()">Get Access — ₹19</button>
   </div>
   <div id="nav-user" style="display:none;align-items:center;gap:10px">
     <div class="streak-badge">🔥 <span id="nav-streak">0</span> day streak</div>
@@ -290,11 +284,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
       <h1>Current Affairs,<br><em>Exam-Ready</em><br>Every Morning.</h1>
       <p>AI-curated news summaries, key points, and MCQ quizzes — delivered fresh every day. Built for serious exam aspirants.</p>
       <div class="hero-cta">
-        <button class="btn btn-primary" onclick="openLogin('new')">Start for ₹19 →</button>
+        <button class="btn btn-primary" onclick="openLogin()">Start for ₹19 →</button>
         <button class="btn btn-outline" onclick="document.getElementById('headlines-anchor').scrollIntoView({behavior:'smooth'})">See today's news</button>
       </div>
       <p style="font-size:12px;color:var(--text3);margin-top:16px">6 months full access · Cancel anytime · Razorpay secured</p>
-      <a class="member-login-link" onclick="openLogin('existing')" style="margin-top:12px;display:inline-block">Already a member? Login here →</a>
     </div>
     <div class="hero-right">
       <div class="hero-card hc1">
@@ -356,45 +349,33 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
   <div class="modal">
     <button class="modal-close" onclick="closeLogin()">✕</button>
     <div class="login-step active" id="step-choose">
-      <!-- Tab switcher -->
-      <div class="login-tabs">
-        <button class="login-tab" id="tab-login" onclick="switchLoginTab('existing')">Login</button>
-        <button class="login-tab active" id="tab-new" onclick="switchLoginTab('new')">New User</button>
-      </div>
-
-      <!-- Login mode content -->
-      <div id="mode-existing" style="display:none">
-        <h2>Welcome back! 👋</h2>
-        <p class="subtitle" style="margin-bottom:20px">Enter your registered phone number to login</p>
-      </div>
-
-      <!-- New user mode content -->
-      <div id="mode-new">
-        <h2>Welcome to ExamEdge</h2>
-        <p class="subtitle" style="margin-bottom:20px">Create your account to access AI-powered current affairs</p>
-      </div>
-
+      <h2>Welcome to ExamEdge</h2>
+      <p class="subtitle">Sign in to access AI-powered current affairs</p>
       <div class="form-group">
-        <label class="form-label">Phone number</label>
-        <input class="form-input" type="tel" placeholder="98765 43210" id="login-identifier" inputmode="numeric">
-        <p class="form-error" id="id-error">Please enter a valid phone number</p>
+        <label class="form-label">Phone number or email</label>
+        <input class="form-input" type="text" placeholder="+91 98765 43210 or email@example.com" id="login-identifier">
+        <p class="form-error" id="id-error">Please enter a valid phone or email</p>
       </div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center" id="otp-btn" onclick="sendOTP()">Send OTP →</button>
-      <p style="font-size:12px;color:var(--text3);text-align:center;margin-top:12px">OTP will be sent via SMS for verification</p>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px" id="otp-btn" onclick="sendOTP()">Send OTP →</button>
+      <p style="font-size:12px;color:var(--text3);text-align:center;margin-top:12px">OTP will be sent to your phone/email for verification</p>
     </div>
     <div class="login-step" id="step-otp">
       <h2>Enter OTP</h2>
-      <p class="subtitle">We sent a 4-digit code to <strong id="otp-sent-to"></strong></p>
-      <div class="otp-inputs">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp1" oninput="otpNext(this,'otp2')">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp2" oninput="otpNext(this,'otp3')">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp3" oninput="otpNext(this,'otp4')">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp4" oninput="otpNext(this,null)">
+      <p class="subtitle">Code sent to <strong id="otp-sent-to"></strong></p>
+      <!-- MSG91 widget yahan render hoga -->
+      <div id="msg91-widget-container" style="margin:8px 0"></div>
+      <!-- Manual OTP boxes — HAMESHA visible -->
+      <div id="manual-otp-section">
+        <div class="otp-inputs">
+          <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp1" oninput="otpNext(this,'otp2')">
+          <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp2" oninput="otpNext(this,'otp3')">
+          <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp3" oninput="otpNext(this,'otp4')">
+          <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp4" oninput="otpNext(this,null)">
+        </div>
+        <p id="otp-error" style="display:none;text-align:center;color:var(--red);font-size:13px;margin:8px 0"></p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px" id="verify-btn" onclick="verifyOTP()">Verify & Continue →</button>
+        <p style="font-size:13px;color:var(--saffron);text-align:center;margin-top:14px;cursor:pointer" onclick="resendOTP()">Resend OTP</p>
       </div>
-      <p id="dev-otp-hint" style="font-size:12px;color:var(--saffron);text-align:center;margin-bottom:16px;display:none"></p>
-      <p class="form-error show" id="otp-error" style="display:none;text-align:center"></p>
-      <button class="btn btn-primary" style="width:100%;justify-content:center" id="verify-btn" onclick="verifyOTP()">Verify & Continue →</button>
-      <p style="font-size:13px;color:var(--saffron);text-align:center;margin-top:16px;cursor:pointer" onclick="resendOTP()">Resend OTP</p>
     </div>
     <div class="login-step" id="step-payment">
       <h2>Get Full Access</h2>
@@ -416,10 +397,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
     </div>
     <div class="login-step" id="step-success">
       <div style="text-align:center;padding:20px 0">
-        <div id="success-icon" style="font-size:56px;margin-bottom:16px">🎉</div>
-        <h2 id="success-title">You're all set!</h2>
-        <p class="subtitle" id="success-msg">Your ExamEdge Premium account is active for 180 days.</p>
-        <button class="btn btn-primary" style="margin-top:8px" onclick="closeLogin();showScreen('dashboard')">Go to Dashboard →</button>
+        <div style="font-size:56px;margin-bottom:16px">🎉</div>
+        <h2>You're all set!</h2>
+        <p class="subtitle">Your ExamEdge Premium account is active for 180 days.</p>
+        <button class="btn btn-primary" style="margin-top:8px" onclick="closeLogin();showScreen('dashboard')">Start Learning →</button>
       </div>
     </div>
   </div>
@@ -547,27 +528,16 @@ function goHome() {
 // ─────────────────────────────────────────────
 // AUTH
 // ─────────────────────────────────────────────
-function openLogin(mode) {
-  document.getElementById('login-modal').classList.add('open');
-  showLoginStep('step-choose');
-  switchLoginTab(mode || 'new');
-}
+function openLogin() { document.getElementById('login-modal').classList.add('open'); showLoginStep('step-choose'); }
 function closeLogin() { document.getElementById('login-modal').classList.remove('open'); }
-function showLoginStep(id) {
-  document.querySelectorAll('.login-step').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-}
+function showLoginStep(id) { document.querySelectorAll('.login-step').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 
-// Tab switcher — Login (existing) vs New User
-function switchLoginTab(mode) {
-  const isExisting = mode === 'existing';
-  document.getElementById('tab-login').classList.toggle('active', isExisting);
-  document.getElementById('tab-new').classList.toggle('active', !isExisting);
-  document.getElementById('mode-existing').style.display = isExisting ? 'block' : 'none';
-  document.getElementById('mode-new').style.display      = isExisting ? 'none'  : 'block';
-  // Store mode so payment step knows what to show
-  window._loginMode = mode;
-}
+// ─────────────────────────────────────────────
+// AUTH + MSG91
+// ─────────────────────────────────────────────
+function openLogin() { document.getElementById('login-modal').classList.add('open'); showLoginStep('step-choose'); }
+function closeLogin() { document.getElementById('login-modal').classList.remove('open'); }
+function showLoginStep(id) { document.querySelectorAll('.login-step').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 
 const MSG91_WIDGET_ID  = '366375664d6e393839313031';
 const MSG91_TOKEN_AUTH = '502039T2CA29tD7Lkg69be4f23P1';
@@ -593,36 +563,45 @@ async function sendOTP() {
   const btn = document.getElementById('otp-btn');
   btn.disabled = true; btn.textContent = 'Loading…';
 
+  // Phone display ke liye
   const display = identifier.startsWith('91') ? '+' + identifier : '+91' + identifier;
   document.getElementById('otp-sent-to').textContent = display;
   showLoginStep('step-otp');
 
-  // ✅ SIRF MSG91 widget — no backend /send-otp (avoids dual OTP / Invalid OTP)
+  // ✅ SIRF MSG91 widget use karo — backend /send-otp call bilkul mat karo
+  // Dual OTP isliye "Invalid OTP" deta tha — ab sirf ek OTP aayega
   loadMsg91(() => {
     btn.disabled = false; btn.textContent = 'Send OTP →';
+
     if (typeof window.initSendOTP !== 'function') {
       showOTPError('OTP widget load nahi hua. Page refresh karke try karein.');
       return;
     }
+
     document.getElementById('msg91-widget-container').innerHTML = '';
+
     window.initSendOTP({
       widgetId:      MSG91_WIDGET_ID,
       tokenAuth:     MSG91_TOKEN_AUTH,
       identifier:    identifier,
       company_name:  'ExamEdge',
-      exposeMethods: true,
+      exposeMethods: true,   // window.verifyOtp(otp) aur window.sendOtp() expose hoga
+
+      // ✅ Widget ne OTP verify kar liya — backend se JWT lo
       success: async (data) => {
         const token = typeof data === 'string' ? data : (data.message || data.token || data.access_token || '');
         await onMsg91Success(identifier, token);
       },
+
       failure: (err) => {
+        console.error('[MSG91]', err);
         showOTPError(err?.message || 'OTP verification failed. Dobara try karein.');
       },
     });
   });
 }
 
-// MSG91 verified → backend se JWT lo
+// MSG91 ne verify kiya → backend se JWT lo
 async function onMsg91Success(identifier, token) {
   try {
     document.getElementById('msg91-widget-container').innerHTML =
@@ -634,22 +613,7 @@ async function onMsg91Success(identifier, token) {
     state.user        = data.user;
     localStorage.setItem('accessToken', data.accessToken);
     updateNavForUser();
-
-    if (data.needsPayment) {
-      // New user — show payment
-      showLoginStep('step-payment');
-    } else {
-      // ✅ Existing premium user — show welcome back screen
-      const isLogin = window._loginMode === 'existing';
-      const sub = data.user?.subscription;
-      const endDate = sub?.endDate ? new Date(sub.endDate).toLocaleDateString('en-IN', {day:'numeric',month:'long',year:'numeric'}) : '';
-      document.getElementById('success-icon').textContent = isLogin ? '👋' : '🎉';
-      document.getElementById('success-title').textContent = isLogin ? 'Welcome back!' : "You're all set!";
-      document.getElementById('success-msg').textContent = isLogin
-        ? (endDate ? `Your premium is active till ${endDate}.` : 'Your premium account is active.')
-        : 'Your ExamEdge Premium account is active for 180 days.';
-      showLoginStep('step-success');
-    }
+    data.needsPayment ? showLoginStep('step-payment') : showLoginStep('step-success');
   } catch(err) {
     document.getElementById('msg91-widget-container').innerHTML = '';
     document.getElementById('manual-otp-section').style.display = 'block';
@@ -657,17 +621,22 @@ async function onMsg91Success(identifier, token) {
   }
 }
 
-// Verify button → window.verifyOtp() (MSG91 widget ka method)
+// ✅ Verify button → window.verifyOtp(otp) call karo jo MSG91 widget ka method hai
+// Ye widget ke success callback ko trigger karta hai → "Invalid OTP" nahi aayega
 async function verifyOTP() {
   const otp = ['otp1','otp2','otp3','otp4'].map(id => document.getElementById(id).value).join('');
   if (otp.length < 4) { showOTPError('Sabhi 4 digits bharein'); return; }
+
   const btn = document.getElementById('verify-btn');
   btn.disabled = true; btn.textContent = 'Verifying…';
+
   try {
     if (typeof window.verifyOtp === 'function') {
-      window.verifyOtp(otp); // MSG91 widget verifies → triggers success/failure callback
+      // MSG91 widget ka method — ye internally verify karta hai aur success/failure callback fire karta hai
+      window.verifyOtp(otp);
+      // success callback onMsg91Success ko call karega automatically
     } else {
-      // Fallback: direct backend verify
+      // Widget load nahi hua — directly backend se try karo
       const identifier = document.getElementById('login-identifier').value.trim();
       const data = await api('POST', '/auth/verify-otp', { identifier, otp });
       state.accessToken = data.accessToken;
@@ -684,6 +653,7 @@ async function verifyOTP() {
 }
 
 function resendOTP() {
+  // MSG91 widget ka resend method
   if (typeof window.sendOtp === 'function') { window.sendOtp(); toast('OTP resent!'); }
   else { showLoginStep('step-choose'); }
 }
