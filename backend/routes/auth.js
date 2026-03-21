@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import { generateTokens, requireAuth } from "../middleware/auth.js";
 import jwt from "jsonwebtoken";
 import axios from "axios";
+import fetch from "node-fetch";
 
 const router = express.Router();
 
@@ -10,46 +11,48 @@ const router = express.Router();
 router.post("/send-otp", async (req, res) => {
   try {
     const { identifier } = req.body;
+
     if (!identifier) {
-      return res.status(400).json({ error: "Phone or email required" });
+      return res.status(400).json({ error: "Phone required" });
     }
 
     const isEmail = identifier.includes("@");
-    const query = isEmail
-      ? { email: identifier.toLowerCase() }
-      : { phone: identifier };
+    if (isEmail) {
+      return res.status(400).json({ error: "Use phone number for OTP" });
+    }
 
-    let user = await User.findOne(query);
-
+    // 👉 User create/find
+    let user = await User.findOne({ phone: identifier });
     if (!user) {
       user = await User.create({
-        ...query,
-        role: "free",
+        phone: identifier,
+        role: "free"
       });
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
-    user.otp = {
-      code: otp,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-    };
-
-    await user.save();
-
-    console.log(`\n📱 OTP for ${identifier}: ${otp}\n`);
-
-    if (process.env.MSG91_API_KEY && !isEmail) {
-      await sendSMSOTP(identifier, otp);
-    }
+    // 🔥 MSG91 send OTP
+    const response = await axios.post(
+      "https://control.msg91.com/api/v5/otp",
+      {
+        mobile: identifier,
+        template_id: process.env.MSG91_TEMPLATE_ID
+      },
+      {
+        headers: {
+          authkey: process.env.MSG91_AUTH_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
     res.json({
       success: true,
-      message: `OTP sent to ${identifier}`,
-      ...(process.env.NODE_ENV !== "production" && { devOtp: otp }),
+      message: "OTP sent successfully",
+      requestId: response.data.request_id
     });
+
   } catch (err) {
-    console.error("send-otp error:", err);
+    console.error("MSG91 send error:", err.response?.data || err.message);
     res.status(500).json({ error: "Failed to send OTP" });
   }
 });
@@ -63,20 +66,39 @@ router.post("/verify-otp", async (req, res) => {
       return res.status(400).json({ error: "identifier and otp required" });
     }
 
+    const response = await fetch("https://control.msg91.com/api/v5/otp/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        mobile: identifier,
+        otp: otp,
+        authkey: process.env.MSG91_AUTH_KEY
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.type !== "success") {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+
+    // ✅ OTP verified → ab user check karo
     const isEmail = identifier.includes("@");
     const query = isEmail
       ? { email: identifier.toLowerCase() }
       : { phone: identifier };
 
-    const user = await User.findOne(query);
+    let user = await User.findOne(query);
 
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (!user.otp?.code) return res.status(400).json({ error: "No OTP requested" });
-    if (user.otp.expiresAt < new Date()) return res.status(400).json({ error: "OTP expired" });
-    if (user.otp.code !== otp) return res.status(400).json({ error: "Incorrect OTP" });
-
-    user.otp = undefined;
-    await user.save();
+    // 👉 Agar user nahi hai → create karo
+    if (!user) {
+      user = await User.create({
+        email: isEmail ? identifier : undefined,
+        phone: !isEmail ? identifier : undefined
+      });
+    }
 
     const { accessToken, refreshToken } = generateTokens(user._id);
 
@@ -87,8 +109,8 @@ router.post("/verify-otp", async (req, res) => {
       user: user.toSafeJSON(),
       needsPayment: !user.isPremium(),
     });
+
   } catch (err) {
-    console.error("verify-otp error:", err);
     res.status(500).json({ error: "Verification failed" });
   }
 });
