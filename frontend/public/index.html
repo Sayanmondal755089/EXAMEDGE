@@ -118,7 +118,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(15,16,53,0.6);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex;animation:fadeIn .2s ease}
-.modal{background:var(--white);border-radius:var(--radius-lg);padding:40px;width:420px;max-width:90vw;max-height:90vh;overflow-y:auto;position:relative}
+.modal{background:var(--white);border-radius:var(--radius-lg);padding:40px;width:420px;max-width:90vw;position:relative}
 .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background .15s}
 .modal-close:hover{background:var(--cream)}
 .modal h2{font-family:var(--font-display);font-size:26px;font-weight:700;color:var(--navy);margin-bottom:6px}
@@ -362,11 +362,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
     <div class="login-step" id="step-otp">
       <h2>Enter OTP</h2>
       <p class="subtitle">Code sent to <strong id="otp-sent-to"></strong></p>
-
-      <!-- MSG91 widget yahan render hoga (agar load hua) -->
+      <!-- MSG91 widget yahan render hoga -->
       <div id="msg91-widget-container" style="margin:8px 0"></div>
-
-      <!-- Manual OTP boxes — HAMESHA VISIBLE, kabhi hide nahi honge -->
+      <!-- Manual OTP boxes — HAMESHA visible -->
       <div id="manual-otp-section">
         <div class="otp-inputs">
           <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp1" oninput="otpNext(this,'otp2')">
@@ -561,50 +559,55 @@ async function sendOTP() {
   const identifier = document.getElementById('login-identifier').value.trim();
   if (!identifier) { document.getElementById('id-error').classList.add('show'); return; }
   document.getElementById('id-error').classList.remove('show');
+
   const btn = document.getElementById('otp-btn');
-  btn.disabled = true; btn.textContent = 'Sending…';
+  btn.disabled = true; btn.textContent = 'Loading…';
 
-  try {
-    // Backend se OTP bhejo (ye hamesha kaam karta hai)
-    await api('POST', '/auth/send-otp', { identifier });
-    document.getElementById('otp-sent-to').textContent = '+91' + identifier.replace(/^91/, '');
-    showLoginStep('step-otp');
-    setTimeout(() => document.getElementById('otp1').focus(), 150);
+  // Phone display ke liye
+  const display = identifier.startsWith('91') ? '+' + identifier : '+91' + identifier;
+  document.getElementById('otp-sent-to').textContent = display;
+  showLoginStep('step-otp');
 
-    // MSG91 widget bhi try karo background mein (agar load hua toh bonus UI)
-    loadMsg91(() => {
-      if (typeof window.initSendOTP !== 'function') return;
-      const container = document.getElementById('msg91-widget-container');
-      container.innerHTML = '';
-      window.initSendOTP({
-        widgetId:      MSG91_WIDGET_ID,
-        tokenAuth:     MSG91_TOKEN_AUTH,
-        identifier:    identifier,
-        company_name:  'ExamEdge',
-        exposeMethods: true,
-        success: async (data) => {
-          const token = typeof data === 'string' ? data : (data.message || data.token || '');
-          await onMsg91Success(identifier, token);
-        },
-        failure: () => {
-          // Widget fail — manual boxes pehle se hi visible hain, kuch nahi karna
-          container.innerHTML = '';
-        },
-      });
-    });
-
-  } catch(e) {
-    toast('Error sending OTP: ' + e.message);
-  } finally {
+  // ✅ SIRF MSG91 widget use karo — backend /send-otp call bilkul mat karo
+  // Dual OTP isliye "Invalid OTP" deta tha — ab sirf ek OTP aayega
+  loadMsg91(() => {
     btn.disabled = false; btn.textContent = 'Send OTP →';
-  }
+
+    if (typeof window.initSendOTP !== 'function') {
+      showOTPError('OTP widget load nahi hua. Page refresh karke try karein.');
+      return;
+    }
+
+    document.getElementById('msg91-widget-container').innerHTML = '';
+
+    window.initSendOTP({
+      widgetId:      MSG91_WIDGET_ID,
+      tokenAuth:     MSG91_TOKEN_AUTH,
+      identifier:    identifier,
+      company_name:  'ExamEdge',
+      exposeMethods: true,   // window.verifyOtp(otp) aur window.sendOtp() expose hoga
+
+      // ✅ Widget ne OTP verify kar liya — backend se JWT lo
+      success: async (data) => {
+        const token = typeof data === 'string' ? data : (data.message || data.token || data.access_token || '');
+        await onMsg91Success(identifier, token);
+      },
+
+      failure: (err) => {
+        console.error('[MSG91]', err);
+        showOTPError(err?.message || 'OTP verification failed. Dobara try karein.');
+      },
+    });
+  });
 }
 
-// MSG91 widget ne verify kiya → backend se JWT lo
+// MSG91 ne verify kiya → backend se JWT lo
 async function onMsg91Success(identifier, token) {
   try {
     document.getElementById('msg91-widget-container').innerHTML =
       '<div class="ai-loading"><div class="spinner"></div>&nbsp;Signing in…</div>';
+    document.getElementById('manual-otp-section').style.display = 'none';
+
     const data = await api('POST', '/auth/verify-msg91', { identifier, token });
     state.accessToken = data.accessToken;
     state.user        = data.user;
@@ -613,24 +616,35 @@ async function onMsg91Success(identifier, token) {
     data.needsPayment ? showLoginStep('step-payment') : showLoginStep('step-success');
   } catch(err) {
     document.getElementById('msg91-widget-container').innerHTML = '';
+    document.getElementById('manual-otp-section').style.display = 'block';
     showOTPError('Login failed: ' + err.message);
   }
 }
 
-// Manual 4-box verify → backend /verify-otp
+// ✅ Verify button → window.verifyOtp(otp) call karo jo MSG91 widget ka method hai
+// Ye widget ke success callback ko trigger karta hai → "Invalid OTP" nahi aayega
 async function verifyOTP() {
-  const identifier = document.getElementById('login-identifier').value.trim();
   const otp = ['otp1','otp2','otp3','otp4'].map(id => document.getElementById(id).value).join('');
   if (otp.length < 4) { showOTPError('Sabhi 4 digits bharein'); return; }
+
   const btn = document.getElementById('verify-btn');
   btn.disabled = true; btn.textContent = 'Verifying…';
+
   try {
-    const data = await api('POST', '/auth/verify-otp', { identifier, otp });
-    state.accessToken = data.accessToken;
-    state.user        = data.user;
-    localStorage.setItem('accessToken', data.accessToken);
-    updateNavForUser();
-    data.needsPayment ? showLoginStep('step-payment') : showLoginStep('step-success');
+    if (typeof window.verifyOtp === 'function') {
+      // MSG91 widget ka method — ye internally verify karta hai aur success/failure callback fire karta hai
+      window.verifyOtp(otp);
+      // success callback onMsg91Success ko call karega automatically
+    } else {
+      // Widget load nahi hua — directly backend se try karo
+      const identifier = document.getElementById('login-identifier').value.trim();
+      const data = await api('POST', '/auth/verify-otp', { identifier, otp });
+      state.accessToken = data.accessToken;
+      state.user        = data.user;
+      localStorage.setItem('accessToken', data.accessToken);
+      updateNavForUser();
+      data.needsPayment ? showLoginStep('step-payment') : showLoginStep('step-success');
+    }
   } catch(e) {
     showOTPError(e.message);
   } finally {
@@ -639,6 +653,7 @@ async function verifyOTP() {
 }
 
 function resendOTP() {
+  // MSG91 widget ka resend method
   if (typeof window.sendOtp === 'function') { window.sendOtp(); toast('OTP resent!'); }
   else { showLoginStep('step-choose'); }
 }
