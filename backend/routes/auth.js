@@ -64,24 +64,6 @@ router.post("/verify-otp", async (req, res) => {
     if (!identifier || !otp) {
       return res.status(400).json({ error: "identifier & otp required" });
     }
-    // 🧪 TEST USER BYPASS (Razorpay verification ke liye)
-    if (identifier === "+919999999999" && otp === "1234") {
-      let user = await User.findOne({ phone: identifier });
-
-      if (!user) {
-        user = await User.create({ phone: identifier });
-      }
-
-      const { accessToken, refreshToken } = generateTokens(user._id);
-
-      return res.json({
-        success: true,
-        accessToken,
-        refreshToken,
-        user: user.toSafeJSON(),
-        needsPayment: false,
-      });
-    }
     if (!identifier.startsWith("91")) {
       identifier = "91" + identifier;
     }
