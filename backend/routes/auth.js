@@ -65,7 +65,7 @@ router.post("/verify-otp", async (req, res) => {
       return res.status(400).json({ error: "identifier & otp required" });
     }
     // 🧪 TEST USER BYPASS (Razorpay verification ke liye)
-    if (identifier === "9999999999" && otp === "1234") {
+    if (identifier === "+919999999999" && otp === "1234") {
       let user = await User.findOne({ phone: identifier });
 
       if (!user) {
