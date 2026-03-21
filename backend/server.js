@@ -36,6 +36,10 @@ app.use(morgan('dev'));
 
 // ── STATIC FILES ───────────────────────────
 app.use(express.static(path.join(__dirname, '../frontend/public')));
+app.use('/api', (req, res, next) => {
+  console.log("API Hit:", req.method, req.originalUrl);
+  next();
+});
 
 // ── ROUTES ─────────────────────────────────
 app.use('/api/auth', authRoutes);
