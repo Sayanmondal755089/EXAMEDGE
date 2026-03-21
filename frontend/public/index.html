@@ -6,18 +6,7 @@
 <title>ExamEdge — Daily Current Affairs for Exam Aspirants</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script>
-const API_URL = "https://examedge-backend1.onrender.com";
-// test API call
-fetch(`${API_URL}/api/health`)
-  .then(res => res.json())
-  .then(data => {
-    console.log("Backend response:", data);
-    document.body.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-  })
-  .catch(err => console.error(err));
-</script>
-  <!-- Razorpay Checkout SDK -->
+<!-- Razorpay Checkout SDK -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -360,18 +349,16 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
       <p style="font-size:12px;color:var(--text3);text-align:center;margin-top:12px">OTP will be sent to your phone/email for verification</p>
     </div>
     <div class="login-step" id="step-otp">
-      <h2>Enter OTP</h2>
-      <p class="subtitle">We sent a 4-digit code to <strong id="otp-sent-to"></strong></p>
-      <div class="otp-inputs">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp1" oninput="otpNext(this,'otp2')">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp2" oninput="otpNext(this,'otp3')">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp3" oninput="otpNext(this,'otp4')">
-        <input class="otp-input" maxlength="1" type="text" inputmode="numeric" id="otp4" oninput="otpNext(this,null)">
+      <h2>Verify Your Number</h2>
+      <p class="subtitle">OTP sent to <strong id="otp-sent-to"></strong></p>
+      <!-- MSG91 OTP widget renders inside this div automatically -->
+      <div id="msg91-widget-container" style="margin:20px 0;min-height:130px;display:flex;align-items:center;justify-content:center">
+        <div class="ai-loading"><div class="spinner"></div> Loading OTP widget…</div>
       </div>
-      <p id="dev-otp-hint" style="font-size:12px;color:var(--saffron);text-align:center;margin-bottom:16px;display:none"></p>
-      <p class="form-error show" id="otp-error" style="display:none;text-align:center"></p>
-      <button class="btn btn-primary" style="width:100%;justify-content:center" id="verify-btn" onclick="verifyOTP()">Verify & Continue →</button>
-      <p style="font-size:13px;color:var(--saffron);text-align:center;margin-top:16px;cursor:pointer" onclick="resendOTP()">Resend OTP</p>
+      <p id="otp-error" style="display:none;text-align:center;color:var(--red);font-size:13px;margin-top:8px"></p>
+      <p style="font-size:12px;color:var(--text3);text-align:center;margin-top:12px">
+        Secured by MSG91 · OTP expires in 10 minutes
+      </p>
     </div>
     <div class="login-step" id="step-payment">
       <h2>Get Full Access</h2>
@@ -472,13 +459,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(254,249,240,
 
 <script>
 // ─────────────────────────────────────────────
-// CONFIG — Update API_BASE for your server
-// ─────────────────────────────────────────────
-const API_BASE = window.location.hostname === 'localhost'
-  ? 'http://localhost:5000/api'
-  : '/api'; // same-origin when deployed
-
-// ─────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────
 let state = {
@@ -495,13 +475,19 @@ let state = {
 // ─────────────────────────────────────────────
 // API HELPERS
 // ─────────────────────────────────────────────
+const API_BASE = 'https://examedge-backend1.onrender.com/api';
+
 async function api(method, path, body) {
-  const res = await fetch(`/api${path}`, {
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
+  const res = await fetch(API_BASE + path, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
 }
 
 // ─────────────────────────────────────────────
@@ -527,58 +513,120 @@ function openLogin() { document.getElementById('login-modal').classList.add('ope
 function closeLogin() { document.getElementById('login-modal').classList.remove('open'); }
 function showLoginStep(id) { document.querySelectorAll('.login-step').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 
+// ─────────────────────────────────────────────
+// MSG91 OTP INTEGRATION
+// ─────────────────────────────────────────────
+const MSG91_CONFIG = {
+  widgetId:     '366375664d6e393839313031',
+  tokenAuth:    '502039T2CA29tD7Lkg69be4f23P1',
+  company_name: 'ExamEdge',
+};
+
+// Loads MSG91 script once, retries secondary URL on failure
+function loadMsg91Script(callback) {
+  if (window._msg91Loaded) { callback(); return; }
+  const urls = [
+    'https://verify.msg91.com/otp-provider.js',
+    'https://verify.phone91.com/otp-provider.js',
+  ];
+  let i = 0;
+  function attempt() {
+    const s = document.createElement('script');
+    s.src = urls[i]; s.async = true;
+    s.onload = () => { window._msg91Loaded = true; callback(); };
+    s.onerror = () => { i++; if (i < urls.length) attempt(); else showOTPError('OTP service unavailable. Please try again later.'); };
+    document.head.appendChild(s);
+  }
+  attempt();
+}
+
 async function sendOTP() {
   const identifier = document.getElementById('login-identifier').value.trim();
   if (!identifier) { document.getElementById('id-error').classList.add('show'); return; }
   document.getElementById('id-error').classList.remove('show');
+
   const btn = document.getElementById('otp-btn');
   btn.disabled = true; btn.textContent = 'Sending…';
-  try {
-    const data = await api('POST', '/auth/send-otp', { identifier });
-    document.getElementById('otp-sent-to').textContent = identifier;
-    showLoginStep('step-otp');
-    setTimeout(() => document.getElementById('otp1').focus(), 100);
-  } catch(e) {
-    toast('Error: ' + e.message);
-  } finally {
+
+  // Switch to OTP step immediately; widget loads inside it
+  document.getElementById('otp-sent-to').textContent = identifier;
+  showLoginStep('step-otp');
+
+  loadMsg91Script(() => {
+    if (typeof window.initSendOTP !== 'function') {
+      showOTPError('OTP widget failed to load. Please refresh and try again.');
+      btn.disabled = false; btn.textContent = 'Send OTP →';
+      return;
+    }
+
+    // Clear any previous widget render
+    document.getElementById('msg91-widget-container').innerHTML = '';
+
+    window.initSendOTP({
+      widgetId:      MSG91_CONFIG.widgetId,
+      tokenAuth:     MSG91_CONFIG.tokenAuth,
+      identifier:    identifier,       // pre-fills phone/email in widget
+      company_name:  MSG91_CONFIG.company_name,
+      exposeMethods: true,             // exposes window.sendOtp() for resend
+
+      success: async (data) => {
+        // MSG91 has verified the OTP — data.message is the access token
+        console.log('[MSG91] Verified:', data);
+        await onMsg91Success(identifier, data);
+      },
+
+      failure: (error) => {
+        console.error('[MSG91] Failed:', error);
+        showOTPError(error?.message || error?.description || 'OTP verification failed. Try again.');
+      },
+    });
+
     btn.disabled = false; btn.textContent = 'Send OTP →';
-  }
+  });
 }
 
-function resendOTP() { showLoginStep('step-choose'); sendOTP(); }
-
-function otpNext(el, nextId) {
-  if (el.value && nextId) document.getElementById(nextId).focus();
-}
-
-async function verifyOTP() {
-  const identifier = document.getElementById('login-identifier').value.trim();
-  const otp = ['otp1','otp2','otp3','otp4'].map(id => document.getElementById(id).value).join('');
-  if (otp.length < 4) { showOTPError('Enter all 4 digits'); return; }
-  const btn = document.getElementById('verify-btn');
-  btn.disabled = true; btn.textContent = 'Verifying…';
+// Called by MSG91 widget after successful OTP verification
+async function onMsg91Success(identifier, msg91Data) {
   try {
-    const data = await api('POST', '/auth/verify-otp', { identifier, otp });
+    document.getElementById('msg91-widget-container').innerHTML =
+      '<div class="ai-loading"><div class="spinner"></div> Signing you in…</div>';
+
+    // Send MSG91's verified token to your backend to get a JWT
+    const data = await api('POST', '/auth/verify-msg91', {
+      identifier,
+      token: msg91Data.message || msg91Data.token || '',
+    });
+
     state.accessToken = data.accessToken;
     state.user = data.user;
     localStorage.setItem('accessToken', data.accessToken);
     updateNavForUser();
+
     if (data.needsPayment) {
       showLoginStep('step-payment');
     } else {
       showLoginStep('step-success');
     }
-  } catch(e) {
-    showOTPError(e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Verify & Continue →';
+  } catch (err) {
+    showOTPError('Login failed: ' + err.message);
+    document.getElementById('msg91-widget-container').innerHTML = '';
+  }
+}
+
+function resendOTP() {
+  // MSG91 exposes sendOtp() globally when exposeMethods: true
+  if (typeof window.sendOtp === 'function') {
+    window.sendOtp();
+    toast('OTP resent!');
+  } else {
+    showLoginStep('step-choose');
   }
 }
 
 function showOTPError(msg) {
   const el = document.getElementById('otp-error');
   el.textContent = msg; el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 3000);
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
 async function initiatePayment() {
