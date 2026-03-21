@@ -10,92 +10,79 @@ import { fileURLToPath } from "url";
 import connectDB from "./config/database.js";
 import { connectRedis } from "./config/redis.js";
 
-// ✅ Routes import
+// ✅ Routes
 import authRoutes from "./routes/auth.js";
 import articleRoutes from "./routes/articles.js";
 import paymentRoutes from "./routes/payment.js";
 import quizRoutes from "./routes/quiz.js";
 import userRoutes from "./routes/user.js";
-import otpRoutes from "./routes/otp.js"; // ✅ NEW
+import otpRoutes from "./routes/otp.js";
 
-// ✅ __dirname fix
+// ── __dirname fix ─────────────────────────
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
 
-// ── CONNECT DB ─────────────────────────────
-connectDB();
-connectRedis();
+// ── CONNECT DB (IMPORTANT FIX) ────────────
+await connectDB();
+await connectRedis();
 
-// ── MIDDLEWARE ─────────────────────────────
-app.use(cors({
-  origin: "*"
-}));
+// ── MIDDLEWARE ───────────────────────────
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(morgan("dev"));
 
-// ── STATIC FILES ───────────────────────────
-app.use(express.static(path.join(__dirname, "../frontend/public")));
-
-// API logger
+// ── API LOGGER ───────────────────────────
 app.use("/api", (req, res, next) => {
-  console.log("API Hit:", req.method, req.originalUrl);
+  console.log("🔥 API Hit:", req.method, req.originalUrl);
   next();
 });
 
-// ── ROUTES ─────────────────────────────────
+// ── ROUTES ───────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/otp", otpRoutes); // ✅ OTP ROUTE ADDED
+app.use("/api/otp", otpRoutes);
 
-// ── CHECK USER ─────────────────────────────
-app.get("/api/check-user", async (req, res) => {
-  const email = req.query.email || req.query.mobile || req.query.identifier;
+// ── CHECK USER ───────────────────────────
+app.get("/api/check-user", (req, res) => {
+  const identifier =
+    req.query.email || req.query.mobile || req.query.identifier;
 
-  if (!email) {
-    return res.status(200).json({
-      user_found: false,
-      identifier: ""
-    });
+  if (!identifier) {
+    return res.json({ user_found: false, identifier: "" });
   }
 
-  return res.status(200).json({
-    user_found: true,
-    identifier: email
-  });
+  return res.json({ user_found: true, identifier });
 });
 
-// ── HEALTH CHECK ───────────────────────────
+// ── HEALTH CHECK ─────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     time: new Date().toISOString(),
-    env: process.env.NODE_ENV
+    env: process.env.NODE_ENV,
   });
 });
 
-// ── START SERVER ───────────────────────────
+// ── STATIC FILES (IMPORTANT POSITION FIX) ─
+app.use(express.static(path.join(__dirname, "../frontend/public")));
+
+// ── START SERVER ─────────────────────────
 const PORT = process.env.PORT || 5001;
 
 app.listen(PORT, () => {
-  console.log(`\n✅ ExamEdge server running on http://localhost:${PORT}`);
-  console.log(`   ENV: ${process.env.NODE_ENV}`);
-  console.log(
-    `   DB: ${
-      process.env.MONGODB_URI?.split("@")[1] || "localhost"
-    }\n`
-  );
+  console.log(`\n✅ Server running on http://localhost:${PORT}`);
 });
 
-// ── CRON JOBS (Production only) ────────────
+// ── CRON JOBS ────────────────────────────
 if (process.env.NODE_ENV === "production") {
-  import("./pipeline/cron.js").then(() => {
-    console.log("⏰ Cron jobs active (6:00 AM IST daily)");
-  });
+  import("./pipeline/cron.js")
+    .then(() => console.log("⏰ Cron jobs active"))
+    .catch((err) => console.error("Cron error:", err.message));
 }
 
 // ── FRONTEND FALLBACK (⚠️ ALWAYS LAST) ────
@@ -103,5 +90,5 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../frontend/public/index.html"));
 });
 
-// ✅ EXPORT
+// ── EXPORT ───────────────────────────────
 export default app;
